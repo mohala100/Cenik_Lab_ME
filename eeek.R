@@ -44,7 +44,7 @@ rc <- get_region_counts(second.ribo,tidy = TRUE,
 
 
 
-# Downloading the proteomics data.
+# Downloading the proteomics data.v
 
 
 # https://www.biostars.org/p/199073/
