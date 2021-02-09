@@ -128,11 +128,21 @@ for (i in 1:length(unique(rc_raw$transcript))) {
   cov_new <- add_row(.data = cov_new,transcript = transcript_names[i], count = nom)
   
 }
-x <- rnorm(10000)
-View(x)
-remove_outliers_1 <- 
-  x[x > (mean(x) - 5*sd(x)) & 
-      x < (mean(x) + 5*sd(x))]
+# Do not run this again unless you want it to take 2 hours. This is the data with the gene coverage checked for and outlier removed.
+cov_new2 <-cov_new[-1,]
+write.csv(cov_new2, file = "gene_coverage_sum_sd_5.csv")
 
-cov_new <- cov_new %>% add_row(transcript = "bob", count = 3)
+# Rerun the RPF_edited with the Proteomics data.
+
+rpf_edited <- read.csv("gene_coverage_sum_sd_5.csv")  %>% mutate(GENE_NAME3 = str_replace(transcript , "-.*",replacement = "")) %>%
+  select(-c(transcript)) %>% select(count,GENE_NAME3) %>% rename(rpf_edited_count = count)
+
+rpf_edited_prot <- left_join(x = rpf_edited,y = prot, by = "GENE_NAME3") %>% na.omit() %>% .[.$rpf_edited_count > 2 & .$prot_count >2,]
+plot(log2(rpf_edited_prot$rpf_edited_count), log2(rpf_edited_prot$prot_count), xlab = "Ribosomal Profiling FootPrint edited", ylab = "Proteomics", main = "log2 Read Counts", pch = 19, cex = 0.5)
+abline(lm(log2(rpf_edited_prot$prot_count) ~ log2(rpf_edited_prot$rpf_edited_count), data = rpf_edited_prot), col = "blue")
+cor(log2(rpf_edited_prot$rpf_edited_count), log2(rpf_edited_prot$prot_count), method = c("pearson"))
+# Ranged Major Axis Regression for RPF and Proteomics
+lmodel2(log2(prot_count) ~ log2(rpf_edited_count),  data = rpf_edited_prot,range.y = "relative",range.x = "relative" )
+#the graph of this!
+abline(-6.643835,2.438341 , col = "black")
 
