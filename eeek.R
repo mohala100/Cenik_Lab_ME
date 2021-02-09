@@ -19,7 +19,7 @@ install.packages("lmodel2")
 library(lmodel2)
 
 # Creating the ribo R object
-second.ribo <- Ribo("/Users/mohanadelchouemi/Desktop/Dr Cenik/RibosomeTranslation/all.ribo", rename = rename_default )
+second.ribo <- Ribo("/Users/mohanadelchouemi/Desktop/Dr Cenik/RibosomeTranslation/Cenik_Lab_ME/all.ribo", rename = rename_default )
 second.ribo 
 
 
@@ -51,7 +51,7 @@ rc <- get_region_counts(second.ribo,tidy = TRUE,
 
 # Information abour RMA http://strata.uga.edu/8370/lecturenotes/regression.html
 
-data <- read_xlsx(path = "/Users/mohanadelchouemi/Desktop/Dr Cenik/RibosomeTranslation/mmc4.xlsx", sheet = 2) %>% mutate_at(vars(2:3),~as.numeric(.x ))
+data <- read_xlsx(path = "/Users/mohanadelchouemi/Desktop/Dr Cenik/RibosomeTranslation/Cenik_Lab_ME/mmc4.xlsx", sheet = 2) %>% mutate_at(vars(2:3),~as.numeric(.x ))
 data[is.na(data)] <- 0
 data$prot_count <- (data$`iBAQ 1 protein copies per cell` + data$`iBAQ 2 protein copies per cell`) / 2
 prot <- data %>% select(`gene symbol`,prot_count) %>% rename(GENE_NAME3 = `gene symbol`)
@@ -59,7 +59,7 @@ prot <- data %>% select(`gene symbol`,prot_count) %>% rename(GENE_NAME3 = `gene 
 # RNA-Seq vs Proteomics
 rna_prot <- left_join(x = rna,y = prot, by = "GENE_NAME3") %>% na.omit() %>% .[.$rna_count > 2 & .$prot_count >2,]
 plot(log2(rna_prot$rna_count), log2(rna_prot$prot_count), xlab = "RNA-Seq", ylab = "Proteomics", main = "log2 CDS Read Counts", pch = 19, cex = 0.5)
-abline(lm(log2(rna_prot$prot_count) ~ log2(rna_prot$rna_count), data = rc_prot), col = "blue")
+abline(lm(log2(rna_prot$prot_count) ~ log2(rna_prot$rna_count), data = rna_prot), col = "blue")
 cor(log2(rna_prot$rna_count), log2(rna_prot$prot_count), method = c("pearson"))
 # Ranged Major Axis Regression for RNA-SEQ and Proteomics
 lmodel2(log2(prot_count) ~ log2(rna_count),  data = rna_prot,range.y = "relative",range.x = "relative",nperm = 1000)
@@ -77,7 +77,62 @@ lmodel2(log2(prot_count) ~ log2(rc_count),  data = rc_prot,range.y = "relative",
 #the graph of this!
 abline(-5.471448,2.3189631 , col = "black")
 
+#RPF_ALL_REGIONS vs Proteomics
 
 
 
+?get_coverage
+# A dataframe of the ribosomal profiling for second.ribo
+
+rc_raw <- get_region_counts(second.ribo,tidy = TRUE,
+                        compact      = FALSE,
+                        transcript  = FALSE,
+                        alias       = TRUE,
+                        experiment ="GSM1691202") %>% group_by(transcript) %>% summarise(total_count = sum(count))  #19736 unique transcripts
+
+
+rc_raw[rc_raw$transcript == "SDF4-202",]
+
+experiment.info <- get_info(ribo.object = second.ribo)[['experiment.info']]
+
+# A data frame for the coverage of genes experiment GSM1691202
+cov <- get_coverage(ribo.object = second.ribo,
+                    name = "SDF4-202",
+                    length      = TRUE,
+                    alias       = TRUE,
+                    tidy        = TRUE,
+                    experiment = "GSM1691202",
+                    compact = FALSE) 
+# Big code to makes a get_gene_no_outliers
+cov_new <- tibble(
+  transcript = NA,
+  count = NA
+  
+)
+
+transcript_names <- unique(rc_raw$transcript)
+
+
+
+for (i in 1:length(unique(rc_raw$transcript))) {
+  naming_variable = transcript_names[i] 
+  cov_temp <- get_coverage(ribo.object = second.ribo,
+                           name = naming_variable,
+                           length      = TRUE,
+                           alias       = TRUE,
+                           tidy        = TRUE,
+                           experiment = "GSM1691202",
+                           compact = FALSE) 
+  nom <- sum(cov_temp$count[cov_temp$count > (mean(cov_temp$count) - 5*sd(cov_temp$count)) &
+                       cov_temp$count < (mean(cov_temp$count) + 5*sd(cov_temp$count))] )
+  cov_new <- add_row(.data = cov_new,transcript = transcript_names[i], count = nom)
+  
+}
+x <- rnorm(10000)
+View(x)
+remove_outliers_1 <- 
+  x[x > (mean(x) - 5*sd(x)) & 
+      x < (mean(x) + 5*sd(x))]
+
+cov_new <- cov_new %>% add_row(transcript = "bob", count = 3)
 
