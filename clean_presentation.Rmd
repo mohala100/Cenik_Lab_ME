@@ -1,0 +1,247 @@
+---
+title: "Ribosomal Profiling"
+author: "Mohanad Elchouemi"
+date: "2/13/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Load the packages that you need. If they are not installed then don't forget to install them.
+
+```{r}
+# if (!requireNamespace("BiocManager", quietly = TRUE))
+#   install.packages("BiocManager")
+# 
+# BiocManager::install("ribor")
+# install.packages("lmodel2")
+# install.packages("devtools")
+# install_github("ribosomeprofiling/ribor")
+
+library("devtools")
+library(ribor)
+library(tidyr)
+library(ggplot2)
+library(FSA)
+library(dplyr)
+library(stringr)
+library(janitor)
+library(readxl)
+library(ggplot2)
+library("ggpubr")
+library(lmodel2)
+library(tidyverse)
+```
+
+Create the Ribo R object from the File I want to use.
+```{r}
+second.ribo <- Ribo("/Users/mohanadelchouemi/Desktop/Dr Cenik/RibosomeTranslation/Cenik_Lab_ME/all.ribo", rename = rename_default )
+second.ribo 
+```
+
+### Used the GSM1691202 experiment because that is what corresponds to the Research article!
+
+Getting the mRNA data
+```{r}
+rna <- get_rnaseq(second.ribo,
+           tidy = TRUE,
+           region = c( "CDS"),
+           experiment = "GSM1691202",
+           compact = FALSE,
+           alias = TRUE) %>% mutate(GENE_NAME3 = str_replace(transcript , "-.*",replacement = "")) %>% 
+  select(-c(transcript)) %>% select(count,GENE_NAME3) %>% rename(rna_count = count)
+
+```
+
+Getting the Ribosomal profiling footprint data
+```{r}
+rc <- get_region_counts(second.ribo,tidy = TRUE,
+                        compact      = FALSE,
+                        transcript  = FALSE,
+                        alias       = TRUE,
+                        region      = c("CDS"),
+                        experiment ="GSM1691202") %>% 
+  mutate(GENE_NAME3 = str_replace(transcript , "-.*",replacement = "")) %>% 
+  select(-c(transcript)) %>% select(count,GENE_NAME3) %>%
+  rename(rc_count = count)
+```
+
+Getting the proteomics data
+```{r}
+data <- read_xlsx(path = "/Users/mohanadelchouemi/Desktop/Dr Cenik/RibosomeTranslation/Cenik_Lab_ME/mmc4.xlsx", sheet = 2) %>% 
+  mutate_at(vars(2:3),~as.numeric(.x ))
+data[is.na(data)] <- 0
+data$prot_count <- (data$`iBAQ 1 protein copies per cell` + data$`iBAQ 2 protein copies per cell`) / 2
+prot <- data %>% select(`gene symbol`,prot_count) %>% rename(GENE_NAME3 = `gene symbol`)
+
+transcripts_used_from_prot <- prot$GENE_NAME3
+
+```
+*transcripts_used* is a vector that contains all the transcripts/genes that are used in the experiment.
+
+RNA-Seq vs Proteomics
+```{r}
+rna_prot <- left_join(x = rna,y = prot, by = "GENE_NAME3") %>% na.omit() %>% .[.$rna_count > 2 & .$prot_count >2,]
+plot(log2(rna_prot$rna_count), log2(rna_prot$prot_count), xlab = "RNA-Seq", ylab = "Proteomics", main = "log2 CDS Read Counts", pch = 19, cex = 0.5)
+abline(lm(log2(rna_prot$prot_count) ~ log2(rna_prot$rna_count), data = rna_prot), col = "blue")
+cor(log2(rna_prot$rna_count), log2(rna_prot$prot_count), method = c("pearson"))
+# Ranged Major Axis Regression for RNA-SEQ and Proteomics
+lmodel2(log2(prot_count) ~ log2(rna_count),  data = rna_prot,range.y = "relative",range.x = "relative",nperm = 1000)
+#the graph of this!
+abline(-14.424822 ,3.5503772, col = "black")
+```
+
+
+Ribosomal Profiling Footprint(RPF) vs Proteomics
+```{r}
+rc_prot <- left_join(x = rc,y = prot, by = "GENE_NAME3") %>% na.omit() %>%
+  .[.$rc_count > 2 & .$prot_count >2,]
+
+plot(log2(rc_prot$rc_count), log2(rc_prot$prot_count), xlab = "Ribosomal Profiling FootPrint", ylab = "Proteomics", main = "log2 CDS Read Counts", pch = 19, cex = 0.5)
+
+abline(lm(log2(rc_prot$prot_count) ~ log2(rc_prot$rc_count), data = rc_prot), col = "blue")
+
+cor(log2(rc_prot$rc_count), log2(rc_prot$prot_count), method = c("pearson"))
+
+# Ranged Major Axis Regression for RPF and Proteomics
+lmodel2(log2(prot_count) ~ log2(rc_count),  data = rc_prot,range.y = "relative",range.x = "relative" )
+
+#the graph of this!
+abline(-5.471448,2.3189631 , col = "black")
+```
+
+
+# Setting Up the Environment prior to the FOR LOOP
+```{r}
+# A raw data frame of the ribosomal profiling data. Mainly used to get the right list of names.
+rc_raw <- get_region_counts(second.ribo,tidy = TRUE,
+                        compact      = FALSE,
+                        transcript  = FALSE,
+                        alias       = TRUE,
+                        experiment ="GSM1691202") %>% 
+  group_by(transcript) %>% 
+  summarise(total_count = sum(count)) %>% 
+  mutate(GENE_NAME3 = str_replace(transcript , "-.*",replacement = "")) %>% 
+  filter(GENE_NAME3 %in% transcripts_used_from_prot)
+
+
+
+#19736 unique transcripts in the riboR file.
+#2406 transcripts that are in proteomics and the ribosomal profiling data.
+
+```
+This narrows down the transcripts that will be used.
+
+```{r}
+rc_og <-get_region_counts(second.ribo,tidy = TRUE,
+                        compact      = FALSE,
+                        transcript  = FALSE,
+                        alias       = TRUE,
+                        experiment ="GSM1691202")
+```
+Generates the dataframe for the for loops to access the region counts information.
+
+
+Pipeline that generates the coverage of the gene without any duplicates
+```{r}
+transcripts_names<- unique(rc_raw$transcript) # This is what will be iterated through for the for loop. 2,406 times
+coord <- get_region_coordinates(second.ribo,alias = TRUE) %>% filter(transcript %in% transcripts_names) %>% select(transcript,CDS_start,CDS_stop)
+```
+coord is a dataframe that contains all the stop and start sites for the CDS.
+
+The For Loop
+```{r}
+# Creating the tibble before starting the for loop.
+cov_new <- tibble(
+  transcript = NA,
+  count = NA
+)
+
+
+#Pipeline that generates the coverage of the gene without 
+# The loop in action
+for (i in 1:length(transcripts_names)) {
+  naming_variable = transcripts_names[i] 
+
+  #cds_start<- coord[coord$transcript == naming_variable,]$CDS_start
+  #cds_stop <- coord[coord$transcript == naming_variable,]$CDS_stop
+  cov <- get_coverage(ribo.object = second.ribo,
+                    name = naming_variable,
+                    length      = TRUE,
+                    alias       = TRUE,
+                    tidy        = TRUE,
+                    experiment = "GSM1691202",
+                    compact = FALSE) %>% 
+    mutate(position_num = as.numeric(position)) %>% select(-c(position)) %>%
+  filter(position_num >= coord[coord$transcript == naming_variable,]$CDS_start & position_num <= coord[coord$transcript == naming_variable,]$CDS_stop) %>%
+    filter(count > (mean(count) - 5*sd(count)) & count < (mean(count) + 5*sd(count))) %>%
+    summarise(sum(count)) %>% as.numeric()
+  
+  cov_new <- add_row(.data = cov_new,transcript = naming_variable, count = cov)
+
+  
+}
+# 
+cov_new2 <-cov_new[-1,]
+write.csv(cov_new2, file = "gene_coverage_perfect.csv")
+```
+
+
+
+ # This chunk is to address the issue of only using the CDS Region of each transcript before removing the outliers.
+ 
+ #### https://stackoverflow.com/questions/8540143/add-consecutive-elements-of-a-vector-until-a-value
+ lets see if this works lol.
+ # https://bookdown.org/csgillespie/efficientR/programming.html
+ 
+ ### Test case to see if the for loop works lol.
+```{r}
+
+cds_start<- coord[coord$transcript == "BAZ1A-203",]$CDS_start
+cds_stop <- coord[coord$transcript == "BAZ1A-203",]$CDS_stop
+cov <- get_coverage(ribo.object = second.ribo,
+                    name = "BAZ1A-203",
+                    length      = TRUE,
+                    alias       = TRUE,
+                    tidy        = TRUE,
+                    experiment = "GSM1691202",
+                    compact = FALSE) %>% mutate(position_num = as.numeric(position)) %>% select(-c(position)) %>%
+  filter(position_num >= coord[coord$transcript == "BAZ1A-203",]$CDS_start & position_num <= coord[coord$transcript == "BAZ1A-203",]$CDS_stop) %>% 
+  filter(count > (mean(count) - 5*sd(count)) & count < (mean(count) + 5*sd(count))) %>% summarise(value = sum(count)) %>% as.numeric()
+
+cov[1][1]
+
+mean(cov$count) + sd(cov$count)*5
+
+nom <- cov[cov$count > (mean(cov$count) - 5*sd(cov$count)) & cov$count < (mean(cov$count) + 5*sd(cov$count)),]
+
+cov_new <- add_row(.data = cov_new,transcript = transcript_names[i], count = nom)
+
+
+
+coord <- get_region_coordinates(second.ribo,alias = TRUE) %>% filter(transcript %in% transcripts_names) %>% select(transcript,CDS_start,CDS_stop)
+
+```
+
+```{r}
+rpf_edited <- read.csv("gene_coverage_perfect.csv")  %>%
+  mutate(GENE_NAME3 = str_replace(transcript , "-.*",replacement = "")) %>%
+  select(-c(transcript)) %>% select(count,GENE_NAME3) %>% rename(rpf_edited_count = count)
+
+rpf_edited_prot <- left_join(x = rpf_edited,y = prot, by = "GENE_NAME3") %>% na.omit() %>% .[.$rpf_edited_count > 2 & .$prot_count >2,]
+
+plot(log2(rpf_edited_prot$rpf_edited_count), log2(rpf_edited_prot$prot_count), xlab = "Ribosomal Profiling FootPrint edited", ylab = "Proteomics", main = "log2 Read Counts", pch = 19, cex = 0.5) + abline(-7.197960,2.511016 , col = "black") + abline(lm(log2(rpf_edited_prot$prot_count) ~ log2(rpf_edited_prot$rpf_edited_count), data = rpf_edited_prot), col = "blue")
+
+cor(log2(rpf_edited_prot$rpf_edited_count), log2(rpf_edited_prot$prot_count), method = c("pearson"))
+
+# Ranged Major Axis Regression for RPF and Proteomics
+lmodel2(log2(prot_count) ~ log2(rpf_edited_count),  data = rpf_edited_prot,range.y = "relative",range.x = "relative",nperm = 1000)
+#the graph of this!
+#the abline is up above^^
+
+```
+
+

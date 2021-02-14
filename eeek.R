@@ -3,10 +3,10 @@ if (!requireNamespace("BiocManager", quietly = TRUE))
   install.packages("BiocManager")
 
 BiocManager::install("ribor")
-
+install.packages("lmodel2")
 install.packages("devtools")
-library("devtools")
 install_github("ribosomeprofiling/ribor")
+library("devtools")
 library(ribor)
 library(tidyr)
 library(dplyr)
@@ -15,7 +15,6 @@ library(janitor)
 library(readxl)
 library(ggplot2)
 library("ggpubr")
-install.packages("lmodel2")
 library(lmodel2)
 
 # Creating the ribo R object
@@ -82,6 +81,7 @@ abline(-5.471448,2.3189631 , col = "black")
 
 
 ?get_coverage
+# aaaaabbbbbbbbbcccddfdgdg
 # A dataframe of the ribosomal profiling for second.ribo
 
 rc_raw <- get_region_counts(second.ribo,tidy = TRUE,
@@ -128,6 +128,13 @@ for (i in 1:length(unique(rc_raw$transcript))) {
   cov_new <- add_row(.data = cov_new,transcript = transcript_names[i], count = nom)
   
 }
+# Verify that the code is running correctly, make a training data set! Always!
+# USE ONLY PROTEOMICS TRANSCRIPTS
+# REMOVE 5' AND 3' AND ANY OTHER NONE CDS REGION.
+# Remember that 
+
+
+
 # Do not run this again unless you want it to take 2 hours. This is the data with the gene coverage checked for and outlier removed.
 cov_new2 <-cov_new[-1,]
 write.csv(cov_new2, file = "gene_coverage_sum_sd_5.csv")
