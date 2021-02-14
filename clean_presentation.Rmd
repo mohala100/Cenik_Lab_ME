@@ -226,6 +226,8 @@ coord <- get_region_coordinates(second.ribo,alias = TRUE) %>% filter(transcript 
 
 ```
 
+
+Plotting out everything and seeing it all!
 ```{r}
 rpf_edited <- read.csv("gene_coverage_perfect.csv")  %>%
   mutate(GENE_NAME3 = str_replace(transcript , "-.*",replacement = "")) %>%
@@ -233,7 +235,10 @@ rpf_edited <- read.csv("gene_coverage_perfect.csv")  %>%
 
 rpf_edited_prot <- left_join(x = rpf_edited,y = prot, by = "GENE_NAME3") %>% na.omit() %>% .[.$rpf_edited_count > 2 & .$prot_count >2,]
 
-plot(log2(rpf_edited_prot$rpf_edited_count), log2(rpf_edited_prot$prot_count), xlab = "Ribosomal Profiling FootPrint edited", ylab = "Proteomics", main = "log2 Read Counts", pch = 19, cex = 0.5) + abline(-7.197960,2.511016 , col = "black") + abline(lm(log2(rpf_edited_prot$prot_count) ~ log2(rpf_edited_prot$rpf_edited_count), data = rpf_edited_prot), col = "blue")
+plot(log2(rpf_edited_prot$rpf_edited_count), log2(rpf_edited_prot$prot_count),
+     xlab = "Ribosomal Profiling FootPrint edited", ylab = "Proteomics", main = "log2 Read Counts", pch = 19, cex = 0.5) +
+abline(lm(log2(rpf_edited_prot$prot_count) ~ log2(rpf_edited_prot$rpf_edited_count), data = rpf_edited_prot), col = "blue") +
+  abline(-7.092803,2.501529, col = "black")
 
 cor(log2(rpf_edited_prot$rpf_edited_count), log2(rpf_edited_prot$prot_count), method = c("pearson"))
 
