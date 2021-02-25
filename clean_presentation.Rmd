@@ -247,6 +247,41 @@ lmodel2(log2(prot_count) ~ log2(rpf_edited_count),  data = rpf_edited_prot,range
 #the graph of this!
 #the abline is up above^^
 
+
+
 ```
+
+
+
+Notes
+# identify outliers,
+# get residual plot
+# function that gets (residuals)
+
+
+Making a function that adds residuals to a dataframe and returns certain residuals away.
+```{r}
+# First make a model of your plots.
+# This is gonna be from the adjusted RPF and Proteomics
+library(modelr)  # Need modelr library to run this
+model <- lm(log2(prot_count) ~ log2(rpf_edited_count), data = rpf_edited_prot)
+plot(model)
+rpf_edited_prot_residuals <- add_residuals(rpf_edited_prot, model, var = "resid") %>% filter(!between(resid,-5,5)) # final pipe returns the outliers!
+
+# returns data frame with the outliers found! This makes log2 of the readcounts so can't rely on it!
+residual_outlier_finder <- function(res_outliers,df,vector_y,vector_x){
+  model_func <- lm(log2(df[[vector_y]]) ~ log2(df[[vector_x]]), data = df)
+  return(add_residuals(df,model_func,var = "resid") %>% filter(!between(resid,-res_outliers,res_outliers)))
+}
+
+str(rpf_edited_prot$prot_count)
+boy <- residual_outlier_finder(res_outliers = 3, df = rpf_edited_prot, vector_y = "prot_count", vector_x = "rpf_edited_count")
+
+
+```
+
+
+
+
 
 
