@@ -302,6 +302,7 @@ rpf_edited_prot_residuals_test_case <- add_residuals(rpf_edited_prot, model, var
 # ggplot to see whether they fit or not.
 rpf_edited_prot_residuals_test_case %>% ggplot(mapping = aes(log2(rpf_edited_count),log2(prot_count),color = label)) + geom_point() + geom_abline(intercept = 6.183,slope = 1.017) + geom_text(aes(label=ifelse(label == "out",as.character(GENE_NAME3),'')),hjust=0,vjust=0)
 
+as.data.frame(boy$GENE_NAME3) %>% write.csv("for_web.csv",row.names = F,quote = F)
 ```
 
 
