@@ -168,6 +168,8 @@ for (i in 1:length(transcripts_names)) {
 
   #cds_start<- coord[coord$transcript == naming_variable,]$CDS_start
   #cds_stop <- coord[coord$transcript == naming_variable,]$CDS_stop
+  
+  # Basically this function first creates a dataframe of the coverage of the gene. Then it makes the counts a numeric data type and deletes the old column that saved counts as character data type. Then it returns the CDS region that we get from the previous chunk using the region count coordinates. We then access that dataframe and get the start and stop CDS region. Then filter out outliers that are five or more standard devations away. Then we sum the CDS regions that are not an outlier then return that sum as a numeric and add it to a new tibble with transcript name and count.
   cov <- get_coverage(ribo.object = second.ribo,
                     name = naming_variable,
                     length      = TRUE,
@@ -212,17 +214,17 @@ cov <- get_coverage(ribo.object = second.ribo,
   filter(position_num >= coord[coord$transcript == "BAZ1A-203",]$CDS_start & position_num <= coord[coord$transcript == "BAZ1A-203",]$CDS_stop) %>% 
   filter(count > (mean(count) - 5*sd(count)) & count < (mean(count) + 5*sd(count))) %>% summarise(value = sum(count)) %>% as.numeric()
 
-cov[1][1]
+#cov[1][1]
 
-mean(cov$count) + sd(cov$count)*5
+#mean(cov$count) + sd(cov$count)*5
 
-nom <- cov[cov$count > (mean(cov$count) - 5*sd(cov$count)) & cov$count < (mean(cov$count) + 5*sd(cov$count)),]
+#nom <- cov[cov$count > (mean(cov$count) - 5*sd(cov$count)) & cov$count < (mean(cov$count) + 5*sd(cov$count)),]
 
-cov_new <- add_row(.data = cov_new,transcript = transcript_names[i], count = nom)
+#cov_new <- add_row(.data = cov_new,transcript = transcript_names[i], count = nom)
 
 
 
-coord <- get_region_coordinates(second.ribo,alias = TRUE) %>% filter(transcript %in% transcripts_names) %>% select(transcript,CDS_start,CDS_stop)
+# coord <- get_region_coordinates(second.ribo,alias = TRUE) %>% filter(transcript %in% transcripts_names) %>% select(transcript,CDS_start,CDS_stop)
 
 ```
 
@@ -273,18 +275,33 @@ residual_outlier_finder <- function(res_outliers,mydata,vector_y,vector_x){
  
   y <- mydata %>% pull(vector_y)
   x <- mydata %>% pull(vector_x)
-  
+  # creating a dataframe because the add_residual function needs some weird stuff.
   temp_df <- mydata %>% mutate(y = log2(y), x = log2(x))
   print(temp_df)
   model_func <- lm(y ~ x, data = temp_df)
+  # returns a data frame that has all the genes that are 5 or more residuals away.
   return(temp_df %>% add_residuals(model_func,var = "resid") %>% filter(!between(resid,-res_outliers,res_outliers)) %>% select(-c(y,x)))
 }
-[,vector_y]
+
 rpf_edited_prot %>% pull("prot_count")
 boy <- residual_outlier_finder(res_outliers = 5, mydata = rpf_edited_prot,vector_y = "prot_count", vector_x = "rpf_edited_count")
 ?add_residuals
 # index name and index
 # extract column name
+
+
+
+# Make a residual plot before and after
+# Always check the accuracy of the function. 
+# ggplot color them.
+# check the ggplots.
+
+model <- lm(log2(prot_count) ~ log2(rpf_edited_count), data = rpf_edited_prot)
+plot(model)
+rpf_edited_prot_residuals_test_case <- add_residuals(rpf_edited_prot, model, var = "resid") %>% mutate(label = ifelse(!between(resid,-5,5),"out","in")) # final pipe returns the outliers!
+# ggplot to see whether they fit or not.
+rpf_edited_prot_residuals_test_case %>% ggplot(mapping = aes(log2(rpf_edited_count),log2(prot_count),color = label)) + geom_point() + geom_abline(intercept = 6.183,slope = 1.017) + geom_text(aes(label=ifelse(label == "out",as.character(GENE_NAME3),'')),hjust=0,vjust=0)
+
 ```
 
 
