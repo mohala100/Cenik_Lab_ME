@@ -127,7 +127,7 @@ rc_raw <- get_region_counts(second.ribo,tidy = TRUE,
   mutate(GENE_NAME3 = str_replace(transcript , "-.*",replacement = "")) %>% 
   filter(GENE_NAME3 %in% transcripts_used_from_prot)
 
-
+?filter()
 
 #19736 unique transcripts in the riboR file.
 #2406 transcripts that are in proteomics and the ribosomal profiling data.
@@ -298,7 +298,7 @@ boy <- residual_outlier_finder(res_outliers = 5, mydata = rpf_edited_prot,vector
 
 model <- lm(log2(prot_count) ~ log2(rpf_edited_count), data = rpf_edited_prot)
 plot(model)
-rpf_edited_prot_residuals_test_case <- add_residuals(rpf_edited_prot, model, var = "resid") %>% mutate(label = ifelse(!between(resid,-5,5),"out","in")) # final pipe returns the outliers!
+rpf_edited_prot_residuals_test_case <- add_residuals(rpf_edited_prot, model, var = "resid") %>% mutate(label = ifelse(!between(resid,-5,5),"out","in")) %>% distinct() # final pipe returns the outliers!
 # ggplot to see whether they fit or not.
 rpf_edited_prot_residuals_test_case %>% ggplot(mapping = aes(log2(rpf_edited_count),log2(prot_count),color = label)) + geom_point() + geom_abline(intercept = 6.183,slope = 1.017) + geom_text(aes(label=ifelse(label == "out",as.character(GENE_NAME3),'')),hjust=0,vjust=0)
 # Created a csv file without row number or quotations so that we can use the below website with no problem.
@@ -306,10 +306,77 @@ rpf_edited_prot_residuals_test_case %>% ggplot(mapping = aes(log2(rpf_edited_cou
 #http://llama.mshri.on.ca/funcassociate/
   
 as.data.frame(boy$GENE_NAME3) %>% write.csv("for_web.csv",row.names = F,quote = F)
+
 ```
 
 
+Gene Space File - All 2300 genes. 
+
+
+What are the genes we are evaluating.
+
+Mappability Open Python etc.
+Read it in R.
+
+This is a chunk to get mappabiltiy data frame and then graph this to the residuals.
+```{r}
+ test <- get_region_counts(second.ribo,tidy = TRUE,
+                        compact      = FALSE,
+                        transcript  = FALSE,
+                        alias       = TRUE,
+                        region      = c("CDS"),
+                        length = FALSE,
+                        experiment ="GSM1691202")
+mappability <- read.csv("/Users/mohanadelchouemi/Desktop/Dr Cenik/RibosomeTranslation/Cenik_Lab_ME/pandaman.csv") %>% mutate(GENE_NAME3 = str_replace(X , "-.*",replacement = "")) %>% select(-X)
+
+# Added some cases.... Figured out why because there are some names that have exact naming.
+# mappability_residuals <- rpf_edited_prot_residuals_test_case %>% left_join(mappability) %>% count(GENE_NAME3) %>% arrange(-desc(n))
+
+# Issues with "duplicates" because of removing the dash afterwards.
+# Need to create a dataframe that takes into account what genes are those that are similar.
+
+# Okay getting to work now.
+mappability_residuals <- rpf_edited_prot_residuals_test_case %>% left_join(mappability) %>% pivot_longer(cols = contains("X"))
+
+mappability_residuals %>% ggplot(mapping = aes(value,resid,color = label)) + geom_point() + facet_wrap(~name)
+
+
+```
+Preparing for the FuncAssociate
+```{r}
+#This is the list of genes that are the outliers!
+as.data.frame(boy$GENE_NAME3) %>% write.csv("for_web.csv",row.names = F,quote = F)
 
 
 
+rpf_edited_prot_residuals_test_case %>% 
+  select(GENE_NAME3) %>% mutate(num = 1) %>% 
+  write.table( file = "gene_space.tsv", row.names=FALSE, sep="\t",col.names = F, quote = F)
+
+
+
+```
+
+
+Okay so far: 
+1) Ran Func Associate
+2) Saw that "extracellular region part" are what the majority of the genes that are outliers on the Prot and RPF.
+3) Going to create scatter plot of just Extra Cellular genes and everything else.
+4) Mappability vs CDS length.
+
+```{r}
+extra_cellular_regions <- scan("omg.rtf",sep = " ",what = "character") %>% as.data.frame() %>% slice(10:811) %>% rename(E_R_P = ".") %>% pull(E_R_P) %>% as.data.frame() %>% slice(1:801) %>% pull(.) %>% append("ZMPSTE24",length(801)) %>% as.data.frame() %>% rename(genes = ".")
+# Making a clean copy of the 802 genes that are form the extra cellular reigon parts
+write.csv(x = extra_cellular_regions,file = "extra_cellular_region_parts_genes.csv")
+#This will label the genes whether they are extra cellular or not.
+
+rpf_edited_prot_distinction_between_extracellular_or_not <- rpf_edited_prot_residuals_test_case %>% mutate(ECRP = ifelse(GENE_NAME3 %in% extra_cellular_regions$genes,"yes","no")) 
+
+# A plot that shows whether the data points are extra cellular region part or not, and whtether they are an outlier or not.
+rpf_edited_prot_distinction_between_extracellular_or_not %>% select(c(1,2,3,5,6)) %>%
+ ggplot(mapping = aes(log2(rpf_edited_count),log2(prot_count),color = label)) + geom_point() + facet_wrap(~ECRP)
+
+
+
+```
 
