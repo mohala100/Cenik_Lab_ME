@@ -327,7 +327,7 @@ This is a chunk to get mappabiltiy data frame and then graph this to the residua
                         region      = c("CDS"),
                         length = FALSE,
                         experiment ="GSM1691202")
-mappability <- read.csv("/Users/mohanadelchouemi/Desktop/Dr Cenik/RibosomeTranslation/Cenik_Lab_ME/pandaman.csv") %>% mutate(GENE_NAME3 = str_replace(X , "-.*",replacement = "")) %>% select(-X)
+mappability <- read.csv("/Users/mohanadelchouemi/Desktop/Dr Cenik/RibosomeTranslation/Cenik_Lab_ME/pandaman.csv") %>% mutate(GENE_NAME3 = str_replace(X , "-.*",replacement = "")) %>% select(-X) %>% group_by(GENE_NAME3) %>% summarize(across(1:6,mean))
 
 # Added some cases.... Figured out why because there are some names that have exact naming.
 # mappability_residuals <- rpf_edited_prot_residuals_test_case %>% left_join(mappability) %>% count(GENE_NAME3) %>% arrange(-desc(n))
@@ -377,6 +377,132 @@ rpf_edited_prot_distinction_between_extracellular_or_not %>% select(c(1,2,3,5,6)
  ggplot(mapping = aes(log2(rpf_edited_count),log2(prot_count),color = label)) + geom_point() + facet_wrap(~ECRP)
 
 
+
+# Now lets see if there is any difference in the correlation between teh two or not!
+extracellular_vs_not <- rpf_edited_prot_distinction_between_extracellular_or_not %>% select(1,2,3,6)
+extracellular <- extracellular_vs_not %>% filter(ECRP == "yes") %>% mutate(rpf_edited_count = rpf_edited_count %>% as.numeric())
+not_extracellular <- extracellular_vs_not %>% filter(ECRP == "no") %>%  mutate(rpf_edited_count = rpf_edited_count %>% as.numeric())
+
+
+
+
+# This is the correlation for extracellular region parts
+plot(log2(extracellular$rpf_edited_count), log2(extracellular$prot_count), xlab = "Ribosomal Profiling FootPrint", ylab = "Proteomics", main = "log2 CDS Read Counts for ExtraCellular Region Parts", pch = 19, cex = 0.5) +
+abline(lm(log2(extracellular$prot_count) ~ log2(extracellular$rpf_edited_count), data = extracellular), col = "blue") + abline(-5.404230,2.362228, col = "black")
+
+cor(log2(extracellular$rpf_edited_count), log2(extracellular$prot_count), method = c("pearson"))
+
+# Ranged Major Axis Regression for RPF and Proteomics
+lmodel2(log2(prot_count) ~ log2(rpf_edited_count),  data = extracellular,range.y = "relative",range.x = "relative",nperm = 1000 )
+
+#the graph of this!
+# line of best fit of the RMA is above!
+
+
+
+
+# This is the correlation for everything else
+
+plot(log2(not_extracellular$rpf_edited_count), log2(not_extracellular$prot_count), xlab = "Ribosomal Profiling FootPrint", ylab = "Proteomics", main = "log2 CDS Read Counts for Not ExtraCellular Region Parts", pch = 19, cex = 0.5) +
+abline(lm(log2(not_extracellular$prot_count) ~ log2(not_extracellular$rpf_edited_count), data = not_extracellular), col = "blue") + abline(-6.715800,2.4374465, col = "black")
+
+cor(log2(not_extracellular$rpf_edited_count), log2(not_extracellular$prot_count), method = c("pearson"))
+
+# Ranged Major Axis Regression for RPF and Proteomics
+lmodel2(log2(prot_count) ~ log2(rpf_edited_count),  data = not_extracellular,range.y = "relative",range.x = "relative",nperm = 1000 )
+
+#the graph of this!
+# line of best fit of the RMA is above!
+
+
+
+```
+
+This is now showing mappability to CDS Length
+```{r}
+
+# Getting all the CDS for all the genes. Some genes are repreated since we removed the isoform label at the end. To combat this we found the mean of the two isoforms!
+cds_lengths <- get_region_coordinates(second.ribo,alias = TRUE) %>% filter(transcript %in% transcripts_names) %>% select(transcript,CDS_start,CDS_stop) %>% 
+  mutate(GENE_NAME3 = str_replace(transcript , "-.*",replacement = "")) %>% select(-1) %>% mutate(cds_lengths = CDS_stop - CDS_start) %>% select(3,4) %>% group_by(GENE_NAME3) %>% summarise(CDS_length = mean(cds_lengths))
+
+cds_lengths_mappability <- left_join(cds_lengths,mappability)
+
+cds_lengths_mappability %>% pivot_longer(cols = contains("X")) %>% ggplot(mapping = aes(log10(CDS_length),value)) + geom_point() + facet_wrap(~name)
+```
+ 
+CDS lengths vs residuals
+2d density plots instead of geom point.
+Ultimately we need to look at the sequences.
+
+
+Verify that this is correct.
+
+why are the residuals like that....
+```{r}
+resid_cds_length <- left_join(rpf_edited_prot_residuals_test_case, cds_lengths, by = "GENE_NAME3")
+
+str(resid_cds_length)
+ggplot(data = resid_cds_length, mapping = aes(x = log10(CDS_length),y= resid)) + geom_point()
+
+ggplot(data = resid_cds_length, mapping = aes(x = log10(prot_count),y= resid)) + geom_point()
+
+```
+## Plotting Everything to see the patterns!
+```{r}
+# Get the lengths of the transcripts first
+gene_lengths <- get_region_coordinates(second.ribo,alias = TRUE) %>% select(c(transcript,CDS_start,CDS_stop)) %>% mutate(CDS_length = CDS_stop - CDS_start) %>% mutate(GENE_NAME3 = str_replace(transcript , "-.*",replacement = "")) %>% select(c(GENE_NAME3,CDS_length)) %>% group_by(GENE_NAME3) %>% summarise(CDS_length = mean(CDS_length)) %>% ungroup()
+
+# Get the ribosomal profiling data
+ribo_profiling <- get_region_counts(second.ribo,tidy = TRUE,
+                        compact      = FALSE,
+                        transcript  = FALSE,
+                        alias       = TRUE,
+                        region      = c("CDS"),
+                        experiment ="GSM1691202") %>% 
+  mutate(GENE_NAME3 = str_replace(transcript , "-.*",replacement = "")) %>% 
+  select(-c(transcript)) %>% select(count,GENE_NAME3) %>%
+  rename(ribo_count = count)
+
+# Get the proteomics data
+data <- read_xlsx(path = "/Users/mohanadelchouemi/Desktop/Dr Cenik/RibosomeTranslation/Cenik_Lab_ME/mmc4.xlsx", sheet = 2) %>% 
+  mutate_at(vars(2:3),~as.numeric(.x ))
+data[is.na(data)] <- 0
+data$prot_count <- (data$`iBAQ 1 protein copies per cell` + data$`iBAQ 2 protein copies per cell`) / 2
+proteomics <- data %>% select(`gene symbol`,prot_count) %>% rename(GENE_NAME3 = `gene symbol`)
+
+# Merge the two dataframes.  Proteomics on the left because we don't have that many proteomcis observations
+proteomics_and_ribo_profiling <- left_join(proteomics,ribo_profiling, by = "GENE_NAME3") %>% na.omit()
+proteomics_and_ribo_profiling <- proteomics_and_ribo_profiling[proteomics_and_ribo_profiling$ribo_count > 2 & proteomics_and_ribo_profiling$prot_count >2,]
+
+# Now we can add the residuals. Residual = y - y hat ( observed minus expected)
+# http://www.r-tutor.com/elementary-statistics/simple-linear-regression/residual-plot
+library(modelr) # will use this package to add residuals easily
+model2 <- lm(log2(prot_count) ~ log2(ribo_count), data = proteomics_and_ribo_profiling) # Need to create a model first
+prot_ribo_resid <- add_residuals(proteomics_and_ribo_profiling, model2, var = "resid")
+
+#Now we can combine prot_ribo_resid with the gene_lengths
+prot_ribo_resid_lengths <- left_join(prot_ribo_resid, gene_lengths, by = "GENE_NAME3")
+
+#Now we can plot everything and see what the relationships there are.
+
+
+plot(log2(prot_ribo_resid_lengths$ribo_count), log2(prot_ribo_resid_lengths$prot_count), xlab = "ribo count", ylab = "prot count", main = "", pch = 19, cex = 0.5)
+
+
+
+# ribo vs resid
+plot(log2(prot_ribo_resid_lengths$ribo_count), model2_resid, xlab = "ribo count", ylab = "resid", main = "", pch = 19, cex = 0.5) 
+
+plot(log2(prot_ribo_resid_lengths$prot_count), prot_ribo_resid_lengths$resid, xlab = "proteomics count", ylab = "resid", main = "", pch = 19, cex = 0.5) 
+
+# These two are the same
+plot(log2(prot_ribo_resid_lengths$CDS_length), prot_ribo_resid_lengths$resid, xlab = "CDS length count", ylab = "resid", main = "", pch = 19, cex = 0.5)
+
+plot(log2(prot_ribo_resid_lengths$CDS_length), model2_resid, xlab = "CDS length count", ylab = "resid", main = "", pch = 19, cex = 0.5)
+
+model3 <- lm(log2(ribo_count) ~ log2(prot_count), data = proteomics_and_ribo_profiling)
+
+plot(log2(prot_ribo_resid_lengths$prot_count), resid(model3), xlab = "proteomics count", ylab = "resid", main = "", pch = 19, cex = 0.5) 
 
 ```
 
