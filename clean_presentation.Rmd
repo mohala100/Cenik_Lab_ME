@@ -505,5 +505,41 @@ model3 <- lm(log2(ribo_count) ~ log2(prot_count), data = proteomics_and_ribo_pro
 
 plot(log2(prot_ribo_resid_lengths$prot_count), resid(model3), xlab = "proteomics count", ylab = "resid", main = "lm(ribo~prot)", pch = 19, cex = 0.5) 
 
+
+
+#################################################
+#################################################
+# Now I am gonna find the residuals using the RMA
+
+lmodel2(log2(prot_count) ~ log2(ribo_count), data = proteomics_and_ribo_profiling,range.y = "relative",range.x = "relative",nperm = 1000)
+
+# The model formula is y = 2.3189631(X) - 5.471448	
+# Going to calculate the residuals and also create my expected values based off of the RMA model!
+prot_ribo_resids_RMA <- proteomics_and_ribo_profiling %>% mutate(expected_values_RMA = (2.3189631 *(log2(ribo_count)) - 5.471448)) %>% mutate(log2(ribo_count),log2(prot_count)) %>% mutate(residuals = log2(prot_count) - expected_values_RMA) %>% mutate(label = ifelse(!between(residuals,-5,5),"out","in")) %>% left_join(gene_lengths)
+
+prot_ribo_resids_RMA %>%  ggplot(aes(x = log2(ribo_count),y = log2(prot_count),color = label)) + geom_point()+geom_abline(intercept = -5.471448, slope = 2.3189631) # geom_text(aes(label = GENE_NAME3))
+
+
+
+```
+Okay so now I have created my linear plot with the RMA and I will plug this data into funcAssociate! 
+Didn't work ask why!!
+```{r}
+prot_ribo_resids_RMA %>% select(GENE_NAME3,label) %>% filter(label == "out") %>% select(GENE_NAME3) %>%pull %>%  length() #%>% write.csv("resids_out4_14_2021.csv",row.names = F,quote = F)
+prot_ribo_resids_RMA %>%select(GENE_NAME3) %>% distinct() %>% mutate(num = 1) %>% 
+  write.table( file = "gene_space_4_14_2021.tsv", row.names=FALSE, sep="\t",col.names = F, quote = F)
+```
+
+```{r}
+ggplot(prot_ribo_resids_RMA,aes(log2(CDS_length),residuals,color = label)) + geom_point()
+
+prot_ribo_resids_RMA %>% ggplot(aes(log2(ribo_count),residuals,color = label)) + geom_point()
+
+prot_ribo_resids_RMA %>% filter(label == "in") %>% ggplot(aes(log2(ribo_count),residuals)) + geom_point()
+
+
+
+
+
 ```
 
