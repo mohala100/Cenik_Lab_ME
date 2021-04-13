@@ -538,6 +538,9 @@ prot_ribo_resids_RMA %>% ggplot(aes(log2(ribo_count),residuals,color = label)) +
 prot_ribo_resids_RMA %>% filter(label == "in") %>% ggplot(aes(log2(ribo_count),residuals)) + geom_point()
 
 
+ggplot(prot_ribo_resids_RMA,aes(log2(CDS_length),log2(ribo_count),color = label)) + geom_point() + facet_wrap(~label)#geom_hex(bins = 58)
+
+ggplot(prot_ribo_resids_RMA,aes(log2(CDS_length),log2(prot_count),color = label)) + geom_point() + facet_wrap(~label)#geom_hex(bins = 58)
 
 
 
