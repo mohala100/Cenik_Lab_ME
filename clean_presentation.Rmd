@@ -500,9 +500,10 @@ plot(log2(prot_ribo_resid_lengths$CDS_length), prot_ribo_resid_lengths$resid, xl
 
 plot(log2(prot_ribo_resid_lengths$CDS_length), model2_resid, xlab = "CDS length count", ylab = "resid", main = "", pch = 19, cex = 0.5)
 
+# Different model!
 model3 <- lm(log2(ribo_count) ~ log2(prot_count), data = proteomics_and_ribo_profiling)
 
-plot(log2(prot_ribo_resid_lengths$prot_count), resid(model3), xlab = "proteomics count", ylab = "resid", main = "", pch = 19, cex = 0.5) 
+plot(log2(prot_ribo_resid_lengths$prot_count), resid(model3), xlab = "proteomics count", ylab = "resid", main = "lm(ribo~prot)", pch = 19, cex = 0.5) 
 
 ```
 
