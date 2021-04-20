@@ -1,0 +1,113 @@
+---
+title: "Final_edits"
+author: "Mohanad Elchouemi"
+date: "4/15/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+This R Markdown will show all the steps in my research up until April 15.
+
+
+#### Loading Packages
+Need a lot of packages for this.
+```{r}
+# if (!requireNamespace("BiocManager", quietly = TRUE))
+#   install.packages("BiocManager")
+# 
+# BiocManager::install("ribor")
+# install.packages("lmodel2")
+# install.packages("devtools")
+# install_github("ribosomeprofiling/ribor")
+
+library("devtools")
+library(ribor)
+library(tidyr)
+library(ggplot2)
+library(FSA)
+library(dplyr)
+library(stringr)
+library(janitor)
+library(readxl)
+library(ggplot2)
+library("ggpubr")
+library(lmodel2)
+library(tidyverse)
+```
+
+#### Creating Ribo Object
+Used the `ribor` library to create this object.
+```{r}
+second.ribo <- Ribo("/Users/mohanadelchouemi/Desktop/Dr Cenik/RibosomeTranslation/Cenik_Lab_ME/all.ribo", rename = rename_default )
+second.ribo 
+```
+
+#### Creating mRNA dataframe
+The data comes from the *GSM1691202* experiment in the ribo object, as this is what corresponds to the proteomics data.
+```{r}
+rna <- get_rnaseq(second.ribo,
+           tidy = TRUE,
+           region = c( "CDS"),
+           experiment = "GSM1691202",
+           compact = FALSE,
+           alias = TRUE) %>% mutate(GENE_NAME3 = str_replace(transcript , "-.*",replacement = "")) %>% 
+  select(-c(transcript)) %>% select(count,GENE_NAME3) %>% rename(rna_count = count)
+```
+
+#### Creating Ribosomal Profiling Footprint dataframe
+The data comes from the *GSM1691202* experiment in the ribo object, as this is what corresponds to the proteomics data.
+```{r}
+ribo_profiling <- get_region_counts(second.ribo,tidy = TRUE,
+                        compact      = FALSE,
+                        transcript  = FALSE,
+                        alias       = TRUE,
+                        region      = c("CDS"),
+                        experiment ="GSM1691202") %>% 
+  mutate(GENE_NAME3 = str_replace(transcript , "-.*",replacement = "")) %>% 
+  select(-c(transcript)) %>% select(count,GENE_NAME3) %>%
+  rename(ribo_count = count)
+```
+
+#### Creating Proteomic Dataframe
+Data came from this paper: <https://www.cell.com/cell-systems/pdfExtended/S2405-4712(17)30180-1>
+
+```{r}
+data <- read_xlsx(path = "/Users/mohanadelchouemi/Desktop/Dr Cenik/RibosomeTranslation/Cenik_Lab_ME/mmc4.xlsx", sheet = 2) %>% 
+  mutate_at(vars(2:3),~as.numeric(.x ))
+data[is.na(data)] <- 0
+data$prot_count <- (data$`iBAQ 1 protein copies per cell` + data$`iBAQ 2 protein copies per cell`) / 2
+proteomics <- data %>% select(`gene symbol`,prot_count) %>% rename(GENE_NAME3 = `gene symbol`)
+
+```
+
+### Running least squares regression models and ranged major axis regression on RNA Seq vs Proteomics
+####RNA-Seq vs Proteomics
+```{r}
+rna_prot <- left_join(x = rna,y = proteomics, by = "GENE_NAME3") %>% na.omit() %>% .[.$rna_count > 2 & .$prot_count >2,]
+plot(log2(rna_prot$rna_count), log2(rna_prot$prot_count), xlab = "RNA-Seq", ylab = "Proteomics", main = "RNA Seq vs Proteomics", pch = 19, cex = 0.5)
+abline(lm(log2(rna_prot$prot_count) ~ log2(rna_prot$rna_count), data = rna_prot), col = "blue")
+```
+
+
+We calculated the R-Squared value, which tells us the proportion of the total variation of Proteomics in the sample that can be attributed to the linear relationship with RNA-Seq. This value was very low and was only 1.42%. And r was  0.1191916.
+
+```{r}
+cor(log2(rna_prot$rna_count), log2(rna_prot$prot_count), method = c("pearson"))^2
+cor(log2(rna_prot$rna_count), log2(rna_prot$prot_count), method = c("pearson"))
+```
+
+Using Ranged Major Axis Regression we are able to use a regression that treats the x axis dependent and not just independent, which is what LS regression does. This takes into account that there might also be some degree of error in the X axis, which we are certain is the case.
+```{r}
+lmodel2(log2(prot_count) ~ log2(rna_count),  data = rna_prot,range.y = "relative",range.x = "relative",nperm = 1000)
+
+```
+Plotted both the least squared regression and the ranged major axis regression lines of best fit together. The black line is the RMA and the blue line is the LS.
+```{r}
+plot(log2(rna_prot$rna_count), log2(rna_prot$prot_count), xlab = "RNA-Seq", ylab = "Proteomics", main = "log2 CDS Read Counts", pch = 19, cex = 0.5)
+abline(-14.424822 ,3.5503772, col = "black")
+abline(lm(log2(rna_prot$prot_count) ~ log2(rna_prot$rna_count), data = rna_prot), col = "blue")
+```
+#### Now its the Ribosomal Profiling vs Proteomics.
+

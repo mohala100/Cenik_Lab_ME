@@ -115,6 +115,8 @@ abline(-5.471448,2.3189631 , col = "black")
 
 
 # Setting Up the Environment prior to the FOR LOOP
+
+# Taking into account the coverage data and acounting for outliers, could be due to errors.
 ```{r}
 # A raw data frame of the ribosomal profiling data. Mainly used to get the right list of names.
 rc_raw <- get_region_counts(second.ribo,tidy = TRUE,
@@ -300,7 +302,7 @@ model <- lm(log2(prot_count) ~ log2(rpf_edited_count), data = rpf_edited_prot)
 plot(model)
 rpf_edited_prot_residuals_test_case <- add_residuals(rpf_edited_prot, model, var = "resid") %>% mutate(label = ifelse(!between(resid,-5,5),"out","in")) %>% distinct() # final pipe returns the outliers!
 # ggplot to see whether they fit or not.
-rpf_edited_prot_residuals_test_case %>% ggplot(mapping = aes(log2(rpf_edited_count),log2(prot_count),color = label)) + geom_point() + geom_abline(intercept = 6.183,slope = 1.017) + geom_text(aes(label=ifelse(label == "out",as.character(GENE_NAME3),'')),hjust=0,vjust=0)
+rpf_edited_prot_residuals_test_case %>% ggplot(mapping = aes(log2(rpf_edited_count),log2(prot_count),color = label)) + geom_point() + geom_abline(intercept = 6.183,slope = 1.017) #+ geom_text(aes(label=ifelse(label == "out",as.character(GENE_NAME3),'')),hjust=0,vjust=0)
 # Created a csv file without row number or quotations so that we can use the below website with no problem.
 
 #http://llama.mshri.on.ca/funcassociate/
@@ -491,33 +493,40 @@ plot(log2(prot_ribo_resid_lengths$ribo_count), log2(prot_ribo_resid_lengths$prot
 
 
 # ribo vs resid
-plot(log2(prot_ribo_resid_lengths$ribo_count), model2_resid, xlab = "ribo count", ylab = "resid", main = "", pch = 19, cex = 0.5) 
+plot(log2(prot_ribo_resid_lengths$ribo_count), model2$resid, xlab = "ribo count", ylab = "resid", main = "", pch = 19, cex = 0.5) 
 
 plot(log2(prot_ribo_resid_lengths$prot_count), prot_ribo_resid_lengths$resid, xlab = "proteomics count", ylab = "resid", main = "", pch = 19, cex = 0.5) 
 
 # These two are the same
 plot(log2(prot_ribo_resid_lengths$CDS_length), prot_ribo_resid_lengths$resid, xlab = "CDS length count", ylab = "resid", main = "", pch = 19, cex = 0.5)
 
-plot(log2(prot_ribo_resid_lengths$CDS_length), model2_resid, xlab = "CDS length count", ylab = "resid", main = "", pch = 19, cex = 0.5)
+plot(log2(prot_ribo_resid_lengths$CDS_length), model2$resid, xlab = "CDS length count", ylab = "resid", main = "", pch = 19, cex = 0.5)
 
 # Different model!
-model3 <- lm(log2(ribo_count) ~ log2(prot_count), data = proteomics_and_ribo_profiling)
+model3 <- lm(log2(prot_count)~log2(ribo_count) + log2(CDS_length) , data = prot_ribo_resid_lengths)
 
-plot(log2(prot_ribo_resid_lengths$prot_count), resid(model3), xlab = "proteomics count", ylab = "resid", main = "lm(ribo~prot)", pch = 19, cex = 0.5) 
+summary(model3)
+
+plot(log2(proteomics_and_ribo_profiling$ribo_count), resid(model3), xlab = "ribo count", ylab = "resid", main = "lm(prot~ribo)", pch = 19, cex = 0.5) 
+
+plot(log2(prot_ribo_resid_lengths$CDS_length),resid(model3))
 
 
-
+plot(log2(prot_ribo_resid_lengths$CDS_length), log2(prot_ribo_resid_lengths$prot_count))
 #################################################
 #################################################
 # Now I am gonna find the residuals using the RMA
 
-lmodel2(log2(prot_count) ~ log2(ribo_count), data = proteomics_and_ribo_profiling,range.y = "relative",range.x = "relative",nperm = 1000)
+lmodel2 <-lmodel2(log2(prot_count) ~ log2(ribo_count), data = proteomics_and_ribo_profiling,range.y = "relative",range.x = "relative",nperm = 1000)
+
+
+# Pretty sure everything below here is wrong.
 
 # The model formula is y = 2.3189631(X) - 5.471448	
 # Going to calculate the residuals and also create my expected values based off of the RMA model!
 prot_ribo_resids_RMA <- proteomics_and_ribo_profiling %>% mutate(expected_values_RMA = (2.3189631 *(log2(ribo_count)) - 5.471448)) %>% mutate(log2(ribo_count),log2(prot_count)) %>% mutate(residuals = log2(prot_count) - expected_values_RMA) %>% mutate(label = ifelse(!between(residuals,-5,5),"out","in")) %>% left_join(gene_lengths)
 
-prot_ribo_resids_RMA %>%  ggplot(aes(x = log2(ribo_count),y = log2(prot_count),color = label)) + geom_point()+geom_abline(intercept = -5.471448, slope = 2.3189631) # geom_text(aes(label = GENE_NAME3))
+prot_ribo_resids_RMA %>%  ggplot(aes(x = log2(ribo_count),y = log2(prot_count),color = label)) +geom_abline(intercept = -5.471448, slope = 2.3189631) # geom_text(aes(label = GENE_NAME3))
 
 
 
@@ -545,4 +554,10 @@ ggplot(prot_ribo_resids_RMA,aes(log2(CDS_length),log2(prot_count),color = label)
 
 
 ```
+Create GLM to predict protein levels.
+Linear model with two variables.
+mulitple regession two continous variables.
 
+lmodoel2 ......... one with error and the other with no error.... can i incorportate this with cds lengeth bc this has no erroer... its known for sure.
+
+mappability vs residuals...
